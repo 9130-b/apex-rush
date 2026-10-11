@@ -19,3 +19,6 @@ tools/server.log
 
 # 本地开发用的自测截图（预览图 docs/preview.png 需要提交）
 /tools/out/
+
+# ZCode 工具自身的忽略文件（与本文件内容重复）
+.zcodeignore
