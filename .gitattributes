@@ -1,0 +1,20 @@
+# 文本文件统一用 LF 存进仓库
+* text=auto eol=lf
+
+# Windows 批处理必须是 CRLF
+*.bat text eol=crlf
+
+# 二进制资源（不要做换行/文本转换）
+*.glb binary
+*.gltf binary
+*.hdr binary
+*.exr binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.wasm binary
+*.woff2 binary
+
+# 生成物：标记为 linguist-generated，GitHub 默认折叠 diff
+src/assets-embed.js linguist-generated=true

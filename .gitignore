@@ -1,0 +1,21 @@
+# 依赖 / 构建产物（本项目零依赖，纯静态，这里只做兜底）
+node_modules/
+dist/
+build/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+desktop.ini
+
+# 日志与临时文件
+*.log
+tools/out/
+tools/server.log
+*.tmp
+
+# 本地开发用的自测截图（预览图 docs/preview.png 需要提交）
+/tools/out/

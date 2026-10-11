@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>APEX RUSH — Three.js 赛车</title>
+<link rel="stylesheet" href="src/style.css" />
+<script>
+/* 收集运行期错误，方便排查资源载入 / 渲染问题 */
+window.__errs = [];
+window.addEventListener('error', function (e) {
+  window.__errs.push('ERROR: ' + (e.message || '') + ' @' + (e.filename || '') + ':' + (e.lineno || ''));
+});
+window.addEventListener('unhandledrejection', function (e) {
+  window.__errs.push('REJECT: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason));
+});
+</script>
+</head>
+<body>
+
+<div id="app">
+  <canvas id="scene"></canvas>
+
+  <!-- ============ HUD ============ -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="panel lap-panel">
+        <div class="row"><span class="k">LAP</span><span class="v"><b id="lapNow">1</b><i>/</i><span id="lapTotal">3</span></span></div>
+        <div class="row"><span class="k">POS</span><span class="v"><b id="posNow">1</b><i>/</i><span id="posTotal">6</span></span></div>
+      </div>
+
+      <div class="panel time-panel">
+        <div class="t-row"><span class="k">CURRENT</span><span class="v mono" id="tCur">0:00.000</span></div>
+        <div class="t-row best"><span class="k">BEST</span><span class="v mono" id="tBest">--:--.---</span></div>
+        <div class="t-row"><span class="k">LAST</span><span class="v mono" id="tLast">--:--.---</span></div>
+        <div class="t-row delta"><span class="k">DELTA</span><span class="v mono" id="tDelta">--.---</span></div>
+      </div>
+
+      <div class="panel stand-panel">
+        <div class="stand-title">STANDINGS</div>
+        <ol id="standings"></ol>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="minimap-wrap">
+        <canvas id="minimap" width="220" height="220"></canvas>
+      </div>
+
+      <div class="gauge-wrap">
+        <canvas id="gauge" width="260" height="260"></canvas>
+        <div class="gauge-readout">
+          <div class="spd mono" id="spdVal">0</div>
+          <div class="unit">KM/H</div>
+          <div class="gear mono" id="gearVal">N</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="wrongWay" class="wrong-way hidden">◀ WRONG WAY</div>
+    <div id="driftTag" class="drift-tag">DRIFT <b id="driftScore">0</b></div>
+    <div id="toast" class="toast"></div>
+    <div id="camHint" class="cam-hint"></div>
+  </div>
+
+  <!-- ============ COUNTDOWN ============ -->
+  <div id="countdown" class="countdown hidden"><span id="cdText">3</span></div>
+
+  <!-- ============ START LIGHTS ============ -->
+  <div id="lights" class="lights hidden">
+    <i></i><i></i><i></i><i></i><i></i>
+  </div>
+
+  <!-- ============ MENU ============ -->
+  <div id="menu" class="overlay">
+    <div class="menu-card">
+      <div class="brand">
+        <h1>APEX<span>RUSH</span></h1>
+        <p class="sub">Three.js 街机赛车 · 素材来自 Poly Haven / Kenney (CC0)</p>
+      </div>
+
+      <div class="menu-section">
+        <div class="label">选择地图</div>
+        <div id="mapPicker" class="map-picker"></div>
+        <div id="mapNote" class="map-note">正在生成赛道…</div>
+      </div>
+
+      <div class="menu-section">
+        <div class="label">选择赛车</div>
+        <div id="carPicker" class="car-picker"></div>
+      </div>
+
+      <div class="menu-section grid2">
+        <div>
+          <div class="label">圈数</div>
+          <div class="seg" id="lapsSeg">
+            <button data-v="1">1</button><button data-v="3" class="on">3</button><button data-v="5">5</button>
+          </div>
+        </div>
+        <div>
+          <div class="label">对手 AI</div>
+          <div class="seg" id="aiSeg">
+            <button data-v="3">3</button><button data-v="5" class="on">5</button><button data-v="7">7</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-section grid2">
+        <div>
+          <div class="label">AI 难度</div>
+          <div class="seg" id="diffSeg">
+            <button data-v="0.86">轻松</button><button data-v="0.95" class="on">普通</button><button data-v="1.05">困难</button>
+          </div>
+        </div>
+        <div>
+          <div class="label">画质</div>
+          <div class="seg" id="qualSeg">
+            <button data-v="low">流畅</button><button data-v="mid" class="on">均衡</button><button data-v="high">极致</button>
+          </div>
+        </div>
+      </div>
+
+      <button id="startBtn" class="start-btn" disabled>正在载入素材…</button>
+
+      <div class="keys">
+        <span><b>W</b>/<b>↑</b> 油门</span>
+        <span><b>S</b>/<b>↓</b> 刹车·倒车</span>
+        <span><b>A</b><b>D</b>/<b>←</b><b>→</b> 转向</span>
+        <span><b>SPACE</b> 手刹漂移</span>
+        <span><b>C</b> 视角</span>
+        <span><b>R</b> 重开</span>
+        <span><b>P</b> 暂停</span>
+        <span><b>M</b> 静音</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAUSE ============ -->
+  <div id="pause" class="overlay hidden">
+    <div class="menu-card small">
+      <h2>已暂停</h2>
+      <p class="sub">按 <b>P</b> 继续 · 按 <b>R</b> 重新开始</p>
+      <button id="resumeBtn" class="start-btn">继续比赛</button>
+    </div>
+  </div>
+
+  <!-- ============ RESULTS ============ -->
+  <div id="results" class="overlay hidden">
+    <div class="menu-card">
+      <h2 id="resTitle">比赛结束</h2>
+      <div class="res-pos"><span id="resPlace">1</span><small id="resSuffix">ST</small></div>
+      <div class="res-grid">
+        <div><span class="k">总用时</span><span class="v mono" id="resTotal">--</span></div>
+        <div><span class="k">最快圈</span><span class="v mono" id="resBest">--</span></div>
+        <div><span class="k">平均速度</span><span class="v mono" id="resAvg">--</span></div>
+        <div><span class="k">最高速度</span><span class="v mono" id="resTop">--</span></div>
+      </div>
+      <div id="resLaps" class="res-laps"></div>
+      <button id="againBtn" class="start-btn">再来一局</button>
+    </div>
+  </div>
+
+  <!-- ============ LOADING ============ -->
+  <div id="loader" class="overlay loading">
+    <div class="load-inner">
+      <div class="brand small"><h1>APEX<span>RUSH</span></h1></div>
+      <div class="bar"><i id="loadBar"></i></div>
+      <div class="load-text" id="loadText">初始化…</div>
+    </div>
+  </div>
+
+  <div id="fatal" class="overlay hidden"><div class="menu-card small"><h2>出错了</h2><pre id="fatalText"></pre></div></div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/RGBELoader.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
+<script src="vendor/DRACOLoader.js"></script>
+<script src="src/assets-embed.js"></script>
+<script src="src/utils.js"></script>
+<script src="src/carmodel.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/track.js"></script>
+<script src="src/car.js"></script>
+<script src="src/ai.js"></script>
+<script src="src/hud.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
